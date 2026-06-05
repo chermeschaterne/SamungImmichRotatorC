@@ -1,0 +1,6 @@
+{
+  "name": "Samsung Immich Rotator C",
+  "country": ["DE", "US"],
+  "render_readme": true,
+  "homeassistant": "2024.4.0"
+}

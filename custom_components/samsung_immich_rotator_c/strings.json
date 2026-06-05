@@ -1,0 +1,87 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Samsung Immich Rotator C",
+        "description": "Connect your Samsung Frame TV to your Immich shared album.",
+        "data": {
+          "immich_share_url": "Immich Share URL",
+          "frame_ip": "Samsung Frame IP Address",
+          "frame_mac": "Samsung Frame MAC Address",
+          "client_name": "Client Name",
+          "matte": "Matte Style"
+        },
+        "data_description": {
+          "immich_share_url": "Full URL of the Immich public share (e.g. https://immich.example.com/share/<key>)",
+          "frame_ip": "IP address of the Samsung Frame TV on your local network",
+          "frame_mac": "MAC address of the Samsung Frame TV, used for Wake-on-LAN (e.g. 38:8c:ef:bb:b4:8c)",
+          "client_name": "Stable identifier shown on the TV's 'Allow connection?' popup. Do not change after first use.",
+          "matte": "Frame or matte style to display around the image"
+        }
+      }
+    },
+    "error": {
+      "invalid_immich_share": "Could not reach the Immich share. Check the URL and that the share is still active.",
+      "unknown": "An unexpected error occurred. Check the Home Assistant log for details."
+    },
+    "abort": {
+      "already_configured": "This combination of Immich share and Frame IP is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Samsung Immich Rotator C — Options",
+        "data": {
+          "rotation_time": "Daily Rotation Time",
+          "brightness": "Brightness Level",
+          "disable_ambient": "Disable Ambient Light Sensor",
+          "motion_sensor": "Motion Sensor (optional)",
+          "motion_timeout": "Motion Timeout"
+        },
+        "data_description": {
+          "rotation_time": "Time of day for the daily image rotation (24-hour format)",
+          "brightness": "Brightness level for art mode (1 = very dim, 10 = maximum)",
+          "disable_ambient": "Disable the TV's ambient light sensor and use a fixed brightness level",
+          "motion_sensor": "Optional binary_sensor entity. If set, the TV will go to standby when no motion is detected for the configured timeout.",
+          "motion_timeout": "Minutes without motion before the TV goes into standby (only used if a motion sensor is configured)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "album_size": {
+        "name": "Album Size"
+      },
+      "current_image": {
+        "name": "Current Image"
+      },
+      "next_rotation": {
+        "name": "Next Rotation"
+      },
+      "last_rotation": {
+        "name": "Last Rotation"
+      },
+      "last_rotation_status": {
+        "name": "Last Rotation Status"
+      }
+    },
+    "switch": {
+      "rotation_enabled": {
+        "name": "Rotation Enabled"
+      }
+    },
+    "button": {
+      "rotate_now": {
+        "name": "Rotate Now"
+      },
+      "wake_frame": {
+        "name": "Wake Frame"
+      },
+      "standby": {
+        "name": "Standby"
+      }
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Samsung Immich Rotator C",
+        "description": "Verbinde deinen Samsung Frame TV mit deinem Immich-Fotoalbum.",
+        "data": {
+          "immich_share_url": "Immich-Freigabe-URL",
+          "frame_ip": "IP-Adresse des Samsung Frame",
+          "frame_mac": "MAC-Adresse des Samsung Frame",
+          "client_name": "Client-Name",
+          "matte": "Passepartout-Stil"
+        },
+        "data_description": {
+          "immich_share_url": "Vollständige URL der öffentlichen Immich-Freigabe (z. B. https://immich.example.com/share/<schlüssel>)",
+          "frame_ip": "IP-Adresse des Samsung Frame TV im lokalen Netzwerk",
+          "frame_mac": "MAC-Adresse des Samsung Frame TV für Wake-on-LAN (z. B. 38:8c:ef:bb:b4:8c)",
+          "client_name": "Stabiler Name, der im TV-Popup 'Verbindung von <Name> zulassen?' angezeigt wird. Nach der ersten Verwendung nicht mehr ändern.",
+          "matte": "Rahmen- oder Passepartout-Stil für die Bildanzeige"
+        }
+      }
+    },
+    "error": {
+      "invalid_immich_share": "Die Immich-Freigabe konnte nicht erreicht werden. Bitte URL und Freigabe-Status prüfen.",
+      "unknown": "Ein unerwarteter Fehler ist aufgetreten. Bitte das Home-Assistant-Protokoll prüfen."
+    },
+    "abort": {
+      "already_configured": "Diese Kombination aus Immich-Freigabe und Frame-IP ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Samsung Immich Rotator C — Einstellungen",
+        "data": {
+          "rotation_time": "Tägliche Rotationszeit",
+          "brightness": "Helligkeit",
+          "disable_ambient": "Umgebungslichtsensor deaktivieren",
+          "motion_sensor": "Bewegungssensor (optional)",
+          "motion_timeout": "Bewegungs-Timeout"
+        },
+        "data_description": {
+          "rotation_time": "Uhrzeit für die tägliche Bildrotation (24-Stunden-Format)",
+          "brightness": "Helligkeit im Art-Modus (1 = sehr dunkel, 10 = maximale Helligkeit)",
+          "disable_ambient": "Umgebungslichtsensor des TV deaktivieren und feste Helligkeit verwenden",
+          "motion_sensor": "Optionaler binary_sensor. Bei Bewegungslosigkeit für die eingestellte Zeit geht der TV in den Standby.",
+          "motion_timeout": "Minuten ohne Bewegung, bevor der TV in den Standby wechselt (nur aktiv, wenn ein Bewegungssensor konfiguriert ist)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "album_size": {
+        "name": "Albumgröße"
+      },
+      "current_image": {
+        "name": "Aktuelles Bild"
+      },
+      "next_rotation": {
+        "name": "Nächste Rotation"
+      },
+      "last_rotation": {
+        "name": "Letzte Rotation"
+      },
+      "last_rotation_status": {
+        "name": "Status der letzten Rotation"
+      }
+    },
+    "switch": {
+      "rotation_enabled": {
+        "name": "Rotation aktiv"
+      }
+    },
+    "button": {
+      "rotate_now": {
+        "name": "Jetzt rotieren"
+      },
+      "wake_frame": {
+        "name": "Frame aufwecken"
+      },
+      "standby": {
+        "name": "Standby"
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "domain": "samsung_immich_rotator_c",
+  "name": "Samsung Immich Rotator C",
+  "version": "1.0.0",
+  "documentation": "https://github.com/chermeschaterne/SamungImmichRotatorC",
+  "issue_tracker": "https://github.com/chermeschaterne/SamungImmichRotatorC/issues",
+  "codeowners": ["@chermeschaterne"],
+  "requirements": ["samsungtvws>=2.0.0", "Pillow>=9.0.0"],
+  "iot_class": "local_polling",
+  "config_flow": true,
+  "integration_type": "service"
+}

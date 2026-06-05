@@ -1,0 +1,31 @@
+set_rotation_time:
+  name: Set Rotation Time
+  description: >
+    Change the daily rotation time for all configured Samsung Immich Rotator C entries.
+    Takes effect at the next scheduled rotation.
+  fields:
+    time:
+      name: Time
+      description: "New rotation time in HH:MM format (24-hour)."
+      required: true
+      example: "08:30"
+      selector:
+        time: {}
+
+rotate:
+  name: Rotate Now
+  description: >
+    Trigger an immediate image rotation on all configured entries.
+    Same effect as pressing the "Rotate Now" button.
+
+wake:
+  name: Wake Frame
+  description: >
+    Send Wake-on-LAN and enable art mode on all configured entries.
+    Same effect as pressing the "Wake Frame" button.
+
+standby:
+  name: Standby
+  description: >
+    Disable art mode (panel off) on all configured entries.
+    Same effect as pressing the "Standby" button.
