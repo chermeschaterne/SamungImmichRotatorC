@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.1.0] - 2026-06-05
+
+### Fixed
+- **`manifest.json`**: Changed requirement from `samsungtvws>=2.0.0` to
+  `samsungtvws[async,encrypted]>=3.0.0`. Without the `[encrypted]` extra, HA
+  installs a build of the library that cannot open port-8002 encrypted WebSocket
+  connections. All Frame 2022+ TVs require port 8002, so every connection attempt
+  failed silently before this fix.
+- **`rotation.py`**: Changed both `select_image(show=False)` calls to
+  `select_image(show=True)`. With `show=False` the TV acknowledges the selection
+  internally but does not update the panel — the image change was invisible.
+  Using `show=True` (matching the validated test script) makes the Frame actually
+  display the newly selected image while in art mode.
+- **`frame_client.py`**: Switched from `token=<string>` to `token_file=<path>`,
+  letting the `samsungtvws` library handle token reads and writes automatically.
+  This matches the pattern used in the validated test script and eliminates the
+  risk of losing the auth token on HA restart before the first rotation completed.
+- **`frame_client.py`**: Removed `_prime_connection()` / `KEY_POWER` priming.
+  Sending `KEY_POWER` to a Frame that is already in art mode toggles it to standby
+  — the integration was turning the TV off on every rotation attempt.
+- **`coordinator.py`**: Removed manual token-load/save logic (`_load_token`,
+  `_save_token`, etc.) — now redundant since the library manages the token file.
+
 ## [1.0.0] - 2024-06-05
 
 ### Added

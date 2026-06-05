@@ -4,8 +4,8 @@ Rotation engine — performs one full image-rotation cycle.
 A rotation cycle:
   1. Fetch current album assets from Immich.
   2. Pick the next image via round-robin (StateStore.advance).
-  3. If already uploaded: just select_image on the Frame (silent, no panel wake).
-  4. If new: download → resize → upload → select_image.
+  3. If already uploaded: select_image(show=True) on the Frame (updates display).
+  4. If new: download → resize → upload → select_image(show=True).
   5. set_brightness + disable ambient-light sensor.
   6. Record result in state.
 
@@ -77,9 +77,9 @@ async def run_rotation(coordinator: "RotatorCoordinator") -> None:
     existing_content_id = state_store.get_frame_content_id(immich_id)
 
     if existing_content_id:
-        # Already uploaded — just select it silently
-        _LOGGER.info("Rotation: image already on Frame (%s), selecting silently", existing_content_id)
-        ok = await frame.select_image(existing_content_id, show=False)
+        # Already uploaded — select and display it
+        _LOGGER.info("Rotation: image already on Frame (%s), selecting", existing_content_id)
+        ok = await frame.select_image(existing_content_id, show=True)
         if not ok:
             await state_store.set_last_rotation("error", "select_image failed (cached)")
             await frame.close()
@@ -106,7 +106,7 @@ async def run_rotation(coordinator: "RotatorCoordinator") -> None:
         await state_store.mark_uploaded(immich_id, content_id)
 
         # Select after upload (NOT before — pre-upload artmode causes 8-16s blocking)
-        ok = await frame.select_image(content_id, show=False)
+        ok = await frame.select_image(content_id, show=True)
         if not ok:
             await state_store.set_last_rotation("error", "select_image failed (new upload)")
             await frame.close()

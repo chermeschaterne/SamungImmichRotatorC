@@ -3,20 +3,21 @@ DataUpdateCoordinator for Samsung Immich Rotator C.
 
 Lifecycle:
   __init__           — zero I/O; constructs sub-objects with empty defaults.
-  async_load_initial_state — load persisted state + TV token from disk (called from
+  async_load_initial_state — load persisted rotation state from disk (called from
                              async_setup_entry before the first refresh).
   _async_update_data — called every 30 min by the coordinator; re-fetches the Immich
                        album list and refreshes entity state.
   async_start_listeners  — wire daily timer + optional motion sensor.
   async_stop_listeners   — called on unload; cancel timer + motion listener.
+
+TV auth token handling:
+  The ``samsungtvws`` library reads and writes the token automatically via the
+  ``token_file`` parameter — no manual load/save is needed here.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
-import stat
-from datetime import datetime, time as dt_time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -87,6 +88,8 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         storage_root = Path(hass.config.path(".storage")) / STORAGE_DIR
         self._state_path = storage_root / f"{entry.entry_id}_state.json"
         self._token_path = storage_root / f"{entry.entry_id}_tv_token"
+        # Ensure the storage directory exists so the library can write the token file
+        storage_root.mkdir(parents=True, exist_ok=True)
 
         # -- Sub-objects constructed with empty defaults (no I/O in __init__)
         session = async_get_clientsession(hass)
@@ -94,9 +97,9 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         self.frame = FrameClient(
             host=self._frame_ip,
             mac=self._frame_mac,
+            token_path=str(self._token_path),  # library handles token read/write
             client_name=self._client_name,
             matte=self._matte,
-            token=None,  # loaded in async_load_initial_state
             port=FRAME_PORT,
         )
         self.state_store = StateStore(self._state_path)
@@ -160,38 +163,13 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
     # ------------------------------------------------------------------ async init (called from __init__.py)
 
     async def async_load_initial_state(self) -> None:
-        """Load persisted state and TV auth token from disk.
+        """Load persisted rotation state from disk.
 
         Must be awaited from ``async_setup_entry`` AFTER construction and
         BEFORE ``async_config_entry_first_refresh``. Never called from __init__.
+        The TV auth token is managed by the samsungtvws library (token_file).
         """
         await self.state_store.load()
-        await self._load_token()
-
-    async def _load_token(self) -> None:
-        """Load the TV auth token from disk into the FrameClient."""
-        try:
-            token = await asyncio.to_thread(self._sync_load_token)
-            if token:
-                self.frame.token = token
-                _LOGGER.info("Loaded TV token from %s", self._token_path)
-        except OSError as exc:
-            _LOGGER.debug("No saved TV token (%s)", exc)
-
-    def _sync_load_token(self) -> Optional[str]:
-        if self._token_path.exists():
-            return self._token_path.read_text(encoding="utf-8").strip() or None
-        return None
-
-    async def _save_token(self) -> None:
-        """Persist the current TV token to disk with restricted permissions."""
-        if self.frame.token:
-            await asyncio.to_thread(self._sync_save_token, self.frame.token)
-
-    def _sync_save_token(self, token: str) -> None:
-        self._token_path.parent.mkdir(parents=True, exist_ok=True)
-        self._token_path.write_text(token, encoding="utf-8")
-        os.chmod(self._token_path, stat.S_IRUSR | stat.S_IWUSR)  # 0o600
 
     # ------------------------------------------------------------------ coordinator data refresh
 
@@ -330,20 +308,17 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
     # ------------------------------------------------------------------ action tasks
 
     async def _run_rotation_task(self) -> None:
-        """Wrap the rotation engine and save any new token afterward."""
         from .rotation import run_rotation
         try:
             await run_rotation(self)
         except Exception as exc:  # noqa: BLE001
             _LOGGER.error("Rotation task raised: %s", exc)
-        await self._save_token()
 
     async def _wake_task(self) -> None:
         """Wake the TV and enable art mode."""
         connected = await self.frame.connect(wake_if_needed=True)
         if connected:
             await self.frame.set_art_mode(True)
-            await self._save_token()
             self._motion_standby_active = False
         await self.frame.close()
         self.async_update_listeners()

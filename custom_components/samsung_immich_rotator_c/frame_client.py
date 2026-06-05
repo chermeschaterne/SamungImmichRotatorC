@@ -4,12 +4,12 @@ Samsung Frame TV client.
 Wraps the ``samsungtvws`` WebSocket library with production robustness:
 
 - Wake-on-LAN fallback when the TV is in deep sleep.
-- KEY_POWER priming to unblock the art WebSocket (Tizen quirk).
+- ``token_file`` parameter so the library handles token read/write automatically
+  (same pattern as the validated test script; avoids token-loss on HA restart).
 - ``_with_timeout``: daemon-thread hard cutoff protecting against hung ``recv()``.
 - ``robust_call``: exception-based retry with per-attempt timeout.
 - Post-upload artmode enable (NOT before upload — causes 8-16s blocking).
 - ``tv.art()`` returning ``None`` treated as a failed connect (2023+ Frame bug).
-- Token persistence via caller-managed token property.
 """
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ import logging
 import socket
 import threading
 import time
-from pathlib import Path
 from typing import Optional
 
 from PIL import Image
@@ -183,40 +182,32 @@ class FrameClient:
     Args:
         host: TV IP address.
         mac: TV MAC address (used for WoL).
+        token_path: Path to the token file (library reads/writes it automatically).
+            On first run the TV will show a pairing prompt; accept with the remote.
         client_name: Name shown in the TV's "Allow connection?" popup.
         matte: Matte/frame style (``"none"`` disables the matte).
-        token: Auth token from a previous session (or None for first-time setup).
-        port: WebSocket port (default: 8002).
+        port: WebSocket port (default: 8002 — encrypted, required for Frame 2022+).
     """
 
     def __init__(
         self,
         host: str,
         mac: str,
+        token_path: str,
         client_name: str = "SamsungImmichRotatorC",
         matte: str = "none",
-        token: Optional[str] = None,
         port: int = 8002,
     ) -> None:
         self.host = host
         self.mac = mac
+        self.token_path = token_path
         self.client_name = client_name
         self.matte = matte
         self.port = port
-        self._token = token
         self._tv = None
         self._art = None
 
     # ------------------------------------------------------------------ helpers
-
-    @property
-    def token(self) -> Optional[str]:
-        """Current auth token (may be updated after a successful connect)."""
-        return self._token
-
-    @token.setter
-    def token(self, value: Optional[str]) -> None:
-        self._token = value
 
     def _is_reachable(self, timeout: float = 3.0) -> bool:
         try:
@@ -226,25 +217,15 @@ class FrameClient:
             return False
 
     def _new_tv(self):
-        from samsungtvws import SamsungTVWS  # deferred import — only available in HA container
+        from samsungtvws import SamsungTVWS  # deferred — only available in HA container
 
         return SamsungTVWS(
             host=self.host,
             port=self.port,
-            token=self._token,
+            token_file=self.token_path,  # library handles read/write automatically
             timeout=30,
             name=self.client_name,
         )
-
-    def _prime_connection(self) -> None:
-        """Send KEY_POWER via the remote API to unblock the art WebSocket."""
-        if self._tv is None:
-            return
-        try:
-            remote = self._tv.remote()
-            remote.send_key("KEY_POWER")
-        except Exception:  # noqa: BLE001
-            pass  # priming is best-effort; failure is non-fatal
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -279,20 +260,14 @@ class FrameClient:
                 )
                 return False
 
-        # Build the TV object
+        # Build the TV object (uses token_file — library auto-reads token from disk)
         try:
             self._tv = await asyncio.to_thread(self._new_tv)
         except Exception as exc:  # noqa: BLE001
             _LOGGER.error("Failed to initialise SamsungTVWS: %s", exc)
             return False
 
-        # Prime the connection (best-effort, non-fatal)
-        try:
-            await asyncio.to_thread(self._prime_connection)
-        except Exception as exc:  # noqa: BLE001
-            _LOGGER.debug("KEY_POWER priming failed (non-fatal): %s", exc)
-
-        # Obtain the art handle
+        # Obtain the art handle — this opens the WebSocket and authenticates
         try:
             self._art = await asyncio.to_thread(self._tv.art)
         except Exception as exc:  # noqa: BLE001
@@ -306,11 +281,6 @@ class FrameClient:
                 "Hard-reset the TV (unplug 3 min, wait 10 min) then reload the integration."
             )
             return False
-
-        # Capture any new token the TV issued (e.g. first-time approval)
-        if self._tv.token and self._tv.token != self._token:
-            self._token = self._tv.token
-            _LOGGER.info("Captured new TV token (first-time approval or token refresh)")
 
         return True
 
@@ -377,12 +347,12 @@ class FrameClient:
             _LOGGER.error("Upload failed: %s", exc)
             return None
 
-    async def select_image(self, content_id: str, show: bool = False) -> bool:
+    async def select_image(self, content_id: str, show: bool = True) -> bool:
         """Select an image by content_id.
 
         Args:
             content_id: Frame content ID from a previous upload.
-            show: If True, wake the panel. Keep False for silent rotation.
+            show: If True, display immediately on the panel (default True).
         Returns: True on success.
         """
         if self._art is None:
