@@ -70,17 +70,14 @@
     "switch": {
       "rotation_enabled": {
         "name": "Rotation aktiv"
+      },
+      "art_mode": {
+        "name": "Art-Modus"
       }
     },
     "button": {
       "rotate_now": {
         "name": "Jetzt rotieren"
-      },
-      "wake_frame": {
-        "name": "Frame aufwecken"
-      },
-      "standby": {
-        "name": "Standby"
       }
     }
   }

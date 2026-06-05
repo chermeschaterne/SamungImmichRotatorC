@@ -106,6 +106,7 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
         # -- Runtime state
         self._rotation_enabled: bool = True
+        self._art_mode_on: Optional[bool] = None  # None = unknown until first toggle
         self._unsub_daily = None
         self._unsub_motion = None
         self._motion_standby_active: bool = False
@@ -145,6 +146,10 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
     @rotation_enabled.setter
     def rotation_enabled(self, value: bool) -> None:
         self._rotation_enabled = value
+
+    @property
+    def art_mode_on(self) -> Optional[bool]:
+        return self._art_mode_on
 
     # ------------------------------------------------------------------ next rotation timestamp
 
@@ -319,6 +324,7 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         connected = await self.frame.connect(wake_if_needed=True)
         if connected:
             await self.frame.set_art_mode(True)
+            self._art_mode_on = True
             self._motion_standby_active = False
         await self.frame.close()
         self.async_update_listeners()
@@ -328,6 +334,7 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         connected = await self.frame.connect(wake_if_needed=False)
         if connected:
             await self.frame.set_art_mode(False)
+            self._art_mode_on = False
             self._motion_standby_active = True
         await self.frame.close()
         self.async_update_listeners()

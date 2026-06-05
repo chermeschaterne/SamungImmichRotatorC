@@ -23,7 +23,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up switch entities from a config entry."""
     coordinator: RotatorCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([RotationEnabledSwitch(coordinator)])
+    async_add_entities([RotationEnabledSwitch(coordinator), ArtModeSwitch(coordinator)])
 
 
 class RotationEnabledSwitch(CoordinatorEntity[RotatorCoordinator], SwitchEntity):
@@ -58,3 +58,39 @@ class RotationEnabledSwitch(CoordinatorEntity[RotatorCoordinator], SwitchEntity)
         self.coordinator.rotation_enabled = False
         _LOGGER.info("Rotation master switch: OFF")
         self.async_write_ha_state()
+
+
+class ArtModeSwitch(CoordinatorEntity[RotatorCoordinator], SwitchEntity):
+    """Switch between Art Mode (on) and TV/standby (off)."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Art Mode"
+    _attr_icon = "mdi:television-ambient-light"
+
+    def __init__(self, coordinator: RotatorCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_art_mode"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, coordinator.entry.entry_id)},
+            name="Samsung Immich Rotator C",
+            manufacturer="Samsung",
+            model="The Frame",
+        )
+
+    @property
+    def is_on(self) -> bool | None:
+        return self.coordinator.art_mode_on
+
+    @property
+    def assumed_state(self) -> bool:
+        return self.coordinator.art_mode_on is None
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable art mode (Wake-on-LAN + set art mode on)."""
+        _LOGGER.info("Art Mode switch: ON")
+        await self.coordinator.async_wake()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable art mode (panel off, TV mode)."""
+        _LOGGER.info("Art Mode switch: OFF")
+        await self.coordinator.async_standby()

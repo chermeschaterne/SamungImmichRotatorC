@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0] - 2026-06-05
+
+### Changed
+- **"Wake Frame" and "Standby" buttons replaced by "Art Mode" switch.** Toggling the switch on
+  enables Art Mode (with Wake-on-LAN fallback); toggling it off switches the TV back to
+  TV/standby mode. The switch state is tracked optimistically after each action.
+
+### Added
+- **README: How to set the rotation time** — step-by-step instructions for both the Configure
+  menu (Settings → Devices & Services → Configure) and the `set_rotation_time` service.
+
+### Removed
+- `button.wake_frame` and `button.standby` entities (replaced by `switch.art_mode`).
+
 ## [1.1.0] - 2026-06-05
 
 ### Fixed
