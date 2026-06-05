@@ -106,5 +106,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload the entry when options change so the new values take effect immediately."""
-    await hass.config_entries.async_reload(entry.entry_id)
+    """Apply option changes without reloading — just restart the affected listeners."""
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if isinstance(coordinator, RotatorCoordinator):
+        coordinator._start_daily_timer()
+        coordinator._start_motion_listener()

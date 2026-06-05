@@ -79,6 +79,11 @@
       "rotate_now": {
         "name": "Jetzt rotieren"
       }
+    },
+    "time": {
+      "rotation_time": {
+        "name": "Rotationszeit"
+      }
     }
   }
 }

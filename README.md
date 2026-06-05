@@ -54,14 +54,10 @@ Runs inside the user's existing HA container — no separate container, no Super
 
 ### 3. Set the daily rotation time
 
-The rotation time can be changed in two ways:
+**Option A — Rotation Time entity (recommended):**
 
-**Option A — via the Configure menu (recommended):**
-
-1. Go to **Settings → Devices & Services**.
-2. Find *Samsung Immich Rotator C* and click **Configure**.
-3. Set the **Daily Rotation Time** field (24-hour format, e.g. `07:30` for 7:30 AM).
-4. Click **Submit**. The new time takes effect immediately — no restart needed.
+The **Rotation Time** entity appears directly on the device dashboard as a time picker.
+Click it, pick a time, confirm — the schedule updates instantly, no restart needed.
 
 **Option B — via the `set_rotation_time` service:**
 
@@ -91,6 +87,7 @@ All options are available under **Settings → Devices & Services → Configure*
 
 | Entity | Type | Description |
 |---|---|---|
+| `time.samsung_immich_rotator_c_rotation_time` | Time | Daily rotation time — click to change with a time picker |
 | `switch.samsung_immich_rotator_c_art_mode` | Switch | Toggle Art Mode on (Frame shows art) / off (TV mode) |
 | `switch.samsung_immich_rotator_c_rotation_enabled` | Switch | Master on/off for scheduled rotations |
 | `button.samsung_immich_rotator_c_rotate_now` | Button | Trigger a rotation immediately |

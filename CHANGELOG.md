@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0] - 2026-06-05
+
+### Added
+- **`time.rotation_time` entity** — a native HA time-picker control that appears directly on
+  the device dashboard. Set the daily rotation time by clicking the entity; no buried Configure
+  menu required.
+
+### Changed
+- Options updates (rotation time, motion sensor, etc.) no longer trigger a full integration
+  reload. The daily timer and motion listener are restarted in-place, so changes take effect
+  immediately and all other state (art mode, rotation status, etc.) is preserved.
+
 ## [1.2.0] - 2026-06-05
 
 ### Changed

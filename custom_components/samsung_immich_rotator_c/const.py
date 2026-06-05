@@ -3,7 +3,7 @@ from __future__ import annotations
 
 DOMAIN = "samsung_immich_rotator_c"
 
-PLATFORMS = ["sensor", "switch", "button"]
+PLATFORMS = ["sensor", "switch", "button", "time"]
 
 # Config-flow keys (stored in entry.data — NOT changed after initial setup)
 CONF_IMMICH_SHARE_URL = "immich_share_url"
