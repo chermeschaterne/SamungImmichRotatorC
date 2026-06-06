@@ -23,7 +23,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up button entities from a config entry."""
     coordinator: RotatorCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([RotateNowButton(coordinator)])
+    async_add_entities(
+        [
+            RotateNowButton(coordinator),
+            SyncGalleryButton(coordinator),
+        ]
+    )
 
 
 def _device_info(coordinator: RotatorCoordinator) -> DeviceInfo:
@@ -53,3 +58,19 @@ class RotateNowButton(CoordinatorEntity[RotatorCoordinator], ButtonEntity):
         await self.coordinator.async_rotate_now()
 
 
+class SyncGalleryButton(CoordinatorEntity[RotatorCoordinator], ButtonEntity):
+    """Sync the Frame gallery with the Immich album (wipe + repull)."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Sync Gallery"
+    _attr_icon = "mdi:sync"
+
+    def __init__(self, coordinator: RotatorCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_sync_gallery"
+        self._attr_device_info = _device_info(coordinator)
+
+    async def async_press(self) -> None:
+        """Sync the gallery (wipe Frame + re-upload from Immich)."""
+        _LOGGER.info("Sync Gallery button pressed")
+        await self.coordinator.async_sync_gallery()

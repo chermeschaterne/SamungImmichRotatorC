@@ -3,7 +3,7 @@ from __future__ import annotations
 
 DOMAIN = "samsung_immich_rotator_c"
 
-PLATFORMS = ["sensor", "switch", "button", "time"]
+PLATFORMS = ["sensor", "switch", "button"]
 
 # Config-flow keys (stored in entry.data — NOT changed after initial setup)
 CONF_IMMICH_SHARE_URL = "immich_share_url"
@@ -16,8 +16,8 @@ CONF_MATTE = "matte"
 CONF_ROTATION_TIME = "rotation_time"
 CONF_BRIGHTNESS = "brightness"
 CONF_DISABLE_AMBIENT = "disable_ambient"
-CONF_MOTION_SENSOR = "motion_sensor"
-CONF_MOTION_TIMEOUT = "motion_timeout"
+CONF_MOTION_ENABLED = "motion_enabled"
+CONF_MOTION_SENSITIVITY = "motion_sensitivity"
 
 # Defaults
 DEFAULT_CLIENT_NAME = "SamsungImmichRotatorC"
@@ -25,7 +25,8 @@ DEFAULT_MATTE = "none"
 DEFAULT_ROTATION_TIME = "06:00"
 DEFAULT_BRIGHTNESS = 2
 DEFAULT_DISABLE_AMBIENT = True
-DEFAULT_MOTION_TIMEOUT = 15
+DEFAULT_MOTION_ENABLED = True
+DEFAULT_MOTION_SENSITIVITY = 3
 
 MATTE_OPTIONS = [
     "none",

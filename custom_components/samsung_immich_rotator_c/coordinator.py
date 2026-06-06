@@ -3,21 +3,20 @@ DataUpdateCoordinator for Samsung Immich Rotator C.
 
 Lifecycle:
   __init__           — zero I/O; constructs sub-objects with empty defaults.
-  async_load_initial_state — load persisted rotation state from disk (called from
+  async_load_initial_state — load persisted state + TV token from disk (called from
                              async_setup_entry before the first refresh).
   _async_update_data — called every 30 min by the coordinator; re-fetches the Immich
                        album list and refreshes entity state.
   async_start_listeners  — wire daily timer + optional motion sensor.
   async_stop_listeners   — called on unload; cancel timer + motion listener.
-
-TV auth token handling:
-  The ``samsungtvws`` library reads and writes the token automatically via the
-  ``token_file`` parameter — no manual load/save is needed here.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+import os
+import stat
+from datetime import datetime, time as dt_time, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -38,14 +37,15 @@ from .const import (
     CONF_FRAME_MAC,
     CONF_IMMICH_SHARE_URL,
     CONF_MATTE,
-    CONF_MOTION_SENSOR,
-    CONF_MOTION_TIMEOUT,
+    CONF_MOTION_ENABLED,
+    CONF_MOTION_SENSITIVITY,
     CONF_ROTATION_TIME,
     DEFAULT_BRIGHTNESS,
     DEFAULT_CLIENT_NAME,
     DEFAULT_DISABLE_AMBIENT,
     DEFAULT_MATTE,
-    DEFAULT_MOTION_TIMEOUT,
+    DEFAULT_MOTION_ENABLED,
+    DEFAULT_MOTION_SENSITIVITY,
     DEFAULT_ROTATION_TIME,
     DOMAIN,
     FRAME_PORT,
@@ -88,8 +88,6 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         storage_root = Path(hass.config.path(".storage")) / STORAGE_DIR
         self._state_path = storage_root / f"{entry.entry_id}_state.json"
         self._token_path = storage_root / f"{entry.entry_id}_tv_token"
-        # Ensure the storage directory exists so the library can write the token file
-        storage_root.mkdir(parents=True, exist_ok=True)
 
         # -- Sub-objects constructed with empty defaults (no I/O in __init__)
         session = async_get_clientsession(hass)
@@ -97,20 +95,16 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         self.frame = FrameClient(
             host=self._frame_ip,
             mac=self._frame_mac,
-            token_path=str(self._token_path),  # library handles token read/write
             client_name=self._client_name,
             matte=self._matte,
+            token=None,  # loaded in async_load_initial_state
             port=FRAME_PORT,
         )
         self.state_store = StateStore(self._state_path)
 
         # -- Runtime state
         self._rotation_enabled: bool = True
-        self._art_mode_on: Optional[bool] = None  # None = unknown until first toggle
         self._unsub_daily = None
-        self._unsub_motion = None
-        self._motion_standby_active: bool = False
-        self._motion_timer_handle = None
 
     # ------------------------------------------------------------------ options helpers
 
@@ -130,14 +124,14 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         return bool(self.entry.options.get(CONF_DISABLE_AMBIENT, DEFAULT_DISABLE_AMBIENT))
 
     @property
-    def options_motion_sensor(self) -> str:
-        """Return the configured motion sensor entity_id, or empty string."""
-        return self.entry.options.get(CONF_MOTION_SENSOR, "")
+    def options_motion_enabled(self) -> bool:
+        """Return whether the TV's motion sensor should be enabled."""
+        return bool(self.entry.options.get(CONF_MOTION_ENABLED, DEFAULT_MOTION_ENABLED))
 
     @property
-    def options_motion_timeout(self) -> int:
-        """Return the motion timeout in minutes."""
-        return int(self.entry.options.get(CONF_MOTION_TIMEOUT, DEFAULT_MOTION_TIMEOUT))
+    def options_motion_sensitivity(self) -> int:
+        """Return the configured motion sensitivity level (1-3)."""
+        return int(self.entry.options.get(CONF_MOTION_SENSITIVITY, DEFAULT_MOTION_SENSITIVITY))
 
     @property
     def rotation_enabled(self) -> bool:
@@ -146,10 +140,6 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
     @rotation_enabled.setter
     def rotation_enabled(self, value: bool) -> None:
         self._rotation_enabled = value
-
-    @property
-    def art_mode_on(self) -> Optional[bool]:
-        return self._art_mode_on
 
     # ------------------------------------------------------------------ next rotation timestamp
 
@@ -168,13 +158,38 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
     # ------------------------------------------------------------------ async init (called from __init__.py)
 
     async def async_load_initial_state(self) -> None:
-        """Load persisted rotation state from disk.
+        """Load persisted state and TV auth token from disk.
 
         Must be awaited from ``async_setup_entry`` AFTER construction and
         BEFORE ``async_config_entry_first_refresh``. Never called from __init__.
-        The TV auth token is managed by the samsungtvws library (token_file).
         """
         await self.state_store.load()
+        await self._load_token()
+
+    async def _load_token(self) -> None:
+        """Load the TV auth token from disk into the FrameClient."""
+        try:
+            token = await asyncio.to_thread(self._sync_load_token)
+            if token:
+                self.frame.token = token
+                _LOGGER.info("Loaded TV token from %s", self._token_path)
+        except OSError as exc:
+            _LOGGER.debug("No saved TV token (%s)", exc)
+
+    def _sync_load_token(self) -> Optional[str]:
+        if self._token_path.exists():
+            return self._token_path.read_text(encoding="utf-8").strip() or None
+        return None
+
+    async def _save_token(self) -> None:
+        """Persist the current TV token to disk with restricted permissions."""
+        if self.frame.token:
+            await asyncio.to_thread(self._sync_save_token, self.frame.token)
+
+    def _sync_save_token(self, token: str) -> None:
+        self._token_path.parent.mkdir(parents=True, exist_ok=True)
+        self._token_path.write_text(token, encoding="utf-8")
+        os.chmod(self._token_path, stat.S_IRUSR | stat.S_IWUSR)  # 0o600
 
     # ------------------------------------------------------------------ coordinator data refresh
 
@@ -208,9 +223,9 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
     # ------------------------------------------------------------------ listeners
 
     async def async_start_listeners(self) -> None:
-        """Start the daily timer and optional motion listener."""
+        """Start the daily timer and apply initial motion settings."""
         self._start_daily_timer()
-        self._start_motion_listener()
+        await self.async_apply_motion_settings()
 
     @callback
     def async_stop_listeners(self) -> None:
@@ -218,12 +233,6 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         if self._unsub_daily is not None:
             self._unsub_daily()
             self._unsub_daily = None
-        if self._unsub_motion is not None:
-            self._unsub_motion()
-            self._unsub_motion = None
-        if self._motion_timer_handle is not None:
-            self._motion_timer_handle.cancel()
-            self._motion_timer_handle = None
 
     def _start_daily_timer(self) -> None:
         if self._unsub_daily is not None:
@@ -248,22 +257,6 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         )
         _LOGGER.info("Daily rotation timer set for %02d:%02d:00", h, m)
 
-    def _start_motion_listener(self) -> None:
-        if self._unsub_motion is not None:
-            self._unsub_motion()
-            self._unsub_motion = None
-
-        entity_id = self.options_motion_sensor
-        if not entity_id:
-            return
-
-        self._unsub_motion = async_track_state_change_event(
-            self.hass,
-            [entity_id],
-            self._handle_motion_event,
-        )
-        _LOGGER.info("Motion listener attached to %s (timeout=%d min)", entity_id, self.options_motion_timeout)
-
     # ------------------------------------------------------------------ event handlers
 
     @callback
@@ -275,57 +268,23 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         _LOGGER.info("Daily rotation triggered at %s", now)
         self.hass.async_create_task(self._run_rotation_task())
 
-    @callback
-    def _handle_motion_event(self, event: Event) -> None:
-        """React to motion sensor state changes."""
-        new_state = event.data.get("new_state")
-        if new_state is None:
-            return
-        state_value = new_state.state
-
-        if state_value == "on":
-            # Motion detected — cancel standby timer, wake TV if needed
-            if self._motion_timer_handle is not None:
-                self._motion_timer_handle.cancel()
-                self._motion_timer_handle = None
-            if self._motion_standby_active:
-                _LOGGER.info("Motion detected — waking Frame")
-                self.hass.async_create_task(self._wake_task())
-        elif state_value == "off":
-            # Motion cleared — start countdown to standby
-            timeout_seconds = self.options_motion_timeout * 60
-            _LOGGER.debug(
-                "Motion off — standby in %d min", self.options_motion_timeout
-            )
-            if self._motion_timer_handle is not None:
-                self._motion_timer_handle.cancel()
-            self._motion_timer_handle = self.hass.loop.call_later(
-                timeout_seconds, self._motion_standby_callback
-            )
-
-    @callback
-    def _motion_standby_callback(self) -> None:
-        """Put the TV in standby after the motion timeout fires."""
-        self._motion_timer_handle = None
-        _LOGGER.info("Motion timeout elapsed — putting Frame in standby")
-        self.hass.async_create_task(self._standby_task())
-
     # ------------------------------------------------------------------ action tasks
 
     async def _run_rotation_task(self) -> None:
+        """Wrap the rotation engine and save any new token afterward."""
         from .rotation import run_rotation
         try:
             await run_rotation(self)
         except Exception as exc:  # noqa: BLE001
             _LOGGER.error("Rotation task raised: %s", exc)
+        await self._save_token()
 
     async def _wake_task(self) -> None:
         """Wake the TV and enable art mode."""
         connected = await self.frame.connect(wake_if_needed=True)
         if connected:
             await self.frame.set_art_mode(True)
-            self._art_mode_on = True
-            self._motion_standby_active = False
+            await self._save_token()
         await self.frame.close()
         self.async_update_listeners()
 
@@ -334,10 +293,26 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         connected = await self.frame.connect(wake_if_needed=False)
         if connected:
             await self.frame.set_art_mode(False)
-            self._art_mode_on = False
-            self._motion_standby_active = True
         await self.frame.close()
         self.async_update_listeners()
+
+    async def async_apply_motion_settings(self) -> None:
+        """Apply motion sensor settings to the TV (called on setup and options change)."""
+        connected = await self.frame.connect(wake_if_needed=False)
+        if not connected:
+            _LOGGER.warning("Cannot apply motion settings — Frame not reachable")
+            return
+
+        await self.frame.set_motion_detection(self.options_motion_enabled)
+        if self.options_motion_enabled:
+            await self.frame.set_motion_sensitivity(self.options_motion_sensitivity)
+
+        await self.frame.close()
+        _LOGGER.info(
+            "Applied motion settings: enabled=%s, sensitivity=%d",
+            self.options_motion_enabled,
+            self.options_motion_sensitivity,
+        )
 
     # ------------------------------------------------------------------ public action API (called by entities/services)
 
@@ -353,3 +328,64 @@ class RotatorCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
     async def async_standby(self) -> None:
         """Disable art mode (panel off)."""
         await self._standby_task()
+
+    async def async_sync_gallery(self) -> None:
+        """Sync the Frame gallery with the Immich album (wipe + repull)."""
+        _LOGGER.info("Starting gallery sync (wipe + repull from Immich)")
+
+        # Step 1: Fetch album from Immich
+        try:
+            assets = await self.immich.list_assets()
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.error("Sync gallery: failed to fetch Immich album: %s", exc)
+            return
+
+        if not assets:
+            _LOGGER.warning("Sync gallery: Immich album is empty — nothing to upload")
+            return
+
+        # Step 2: Connect to Frame
+        connected = await self.frame.connect(wake_if_needed=True)
+        if not connected:
+            _LOGGER.error("Sync gallery: Frame unreachable")
+            return
+
+        # Step 3: Wipe existing gallery
+        try:
+            existing = await self.frame.list_available_artworks()
+            for art in existing:
+                content_id = art.get("content_id")
+                if content_id:
+                    await self.frame.delete_artwork(content_id)
+            _LOGGER.info("Sync gallery: deleted %d existing artworks", len(existing))
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.error("Sync gallery: failed to wipe gallery: %s", exc)
+            await self.frame.close()
+            return
+
+        # Step 4: Upload all assets from Immich
+        uploaded_count = 0
+        new_uploaded = {}
+        for asset in assets:
+            try:
+                raw_bytes = await self.immich.download_original(asset.id)
+                content_id = await self.frame.upload_image(raw_bytes)
+                if content_id:
+                    new_uploaded[asset.id] = content_id
+                    uploaded_count += 1
+                    _LOGGER.info("Sync gallery: uploaded %d/%d", uploaded_count, len(assets))
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.error("Sync gallery: failed to upload %s: %s", asset.id, exc)
+
+        await self.frame.close()
+
+        # Step 5: Update state with the new gallery
+        asset_ids = [a.id for a in assets]
+        await self.state_store.update_assets(asset_ids)
+
+        # Clear old uploaded mapping and set the new one
+        self.state_store.state.uploaded = new_uploaded
+        await self.state_store.save()
+
+        _LOGGER.info("Sync gallery: complete (%d/%d uploaded)", uploaded_count, len(assets))
+        await self.async_refresh()

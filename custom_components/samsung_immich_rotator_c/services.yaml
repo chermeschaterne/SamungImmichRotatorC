@@ -28,4 +28,10 @@ standby:
   name: Standby
   description: >
     Disable art mode (panel off) on all configured entries.
-    Same effect as pressing the "Standby" button.
+
+sync_gallery:
+  name: Sync Gallery
+  description: >
+    Wipe the Frame TV gallery and re-upload all images from the Immich album.
+    This removes all existing artworks from the Frame and uploads the complete
+    Immich album from scratch. Use when the gallery is out of sync.

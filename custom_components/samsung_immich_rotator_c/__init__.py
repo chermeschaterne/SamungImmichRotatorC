@@ -65,10 +65,17 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 _LOGGER.info("Service standby → entry %s", entry_id)
                 await coordinator.async_standby()
 
+    async def _handle_sync_gallery(call: ServiceCall) -> None:
+        for entry_id, coordinator in hass.data.get(DOMAIN, {}).items():
+            if isinstance(coordinator, RotatorCoordinator):
+                _LOGGER.info("Service sync_gallery → entry %s", entry_id)
+                await coordinator.async_sync_gallery()
+
     hass.services.async_register(DOMAIN, "set_rotation_time", _handle_set_rotation_time)
     hass.services.async_register(DOMAIN, "rotate", _handle_rotate)
     hass.services.async_register(DOMAIN, "wake", _handle_wake)
     hass.services.async_register(DOMAIN, "standby", _handle_standby)
+    hass.services.async_register(DOMAIN, "sync_gallery", _handle_sync_gallery)
 
     return True
 
@@ -110,4 +117,4 @@ async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> Non
     coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
     if isinstance(coordinator, RotatorCoordinator):
         coordinator._start_daily_timer()
-        coordinator._start_motion_listener()
+        await coordinator.async_apply_motion_settings()

@@ -18,14 +18,15 @@ from .const import (
     CONF_FRAME_MAC,
     CONF_IMMICH_SHARE_URL,
     CONF_MATTE,
-    CONF_MOTION_SENSOR,
-    CONF_MOTION_TIMEOUT,
+    CONF_MOTION_ENABLED,
+    CONF_MOTION_SENSITIVITY,
     CONF_ROTATION_TIME,
     DEFAULT_BRIGHTNESS,
     DEFAULT_CLIENT_NAME,
     DEFAULT_DISABLE_AMBIENT,
     DEFAULT_MATTE,
-    DEFAULT_MOTION_TIMEOUT,
+    DEFAULT_MOTION_ENABLED,
+    DEFAULT_MOTION_SENSITIVITY,
     DEFAULT_ROTATION_TIME,
     DOMAIN,
     MATTE_OPTIONS,
@@ -171,14 +172,14 @@ class SamsungImmichRotatorOptionsFlow(config_entries.OptionsFlow):
                     default=bool(current.get(CONF_DISABLE_AMBIENT, DEFAULT_DISABLE_AMBIENT)),
                 ): selector({"boolean": {}}),
                 vol.Optional(
-                    CONF_MOTION_SENSOR,
-                    default=current.get(CONF_MOTION_SENSOR, ""),
-                ): selector({"entity": {"domain": "binary_sensor"}}),
+                    CONF_MOTION_ENABLED,
+                    default=bool(current.get(CONF_MOTION_ENABLED, DEFAULT_MOTION_ENABLED)),
+                ): selector({"boolean": {}}),
                 vol.Optional(
-                    CONF_MOTION_TIMEOUT,
-                    default=int(current.get(CONF_MOTION_TIMEOUT, DEFAULT_MOTION_TIMEOUT)),
+                    CONF_MOTION_SENSITIVITY,
+                    default=int(current.get(CONF_MOTION_SENSITIVITY, DEFAULT_MOTION_SENSITIVITY)),
                 ): selector(
-                    {"number": {"min": 1, "max": 120, "step": 1, "unit_of_measurement": "min"}}
+                    {"number": {"min": 1, "max": 3, "step": 1, "mode": "slider"}}
                 ),
             }
         )

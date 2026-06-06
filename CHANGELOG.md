@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0] - 2026-06-06
+
+### Changed
+- **Rotation simplified**: Rotates only through images currently on the Frame TV gallery (via `art.available()`), no longer fetches from Immich during rotation. Gallery must be synced separately via the new Sync Gallery service/button.
+- **Motion sensor behavior**: Motion sensor settings now ONLY control the TV's built-in motion sensor (enable/disable + sensitivity 1-3). The integration no longer reacts to HA motion sensor entities for wake/standby automation.
+
+### Added
+- **Sync Gallery service** (`samsung_immich_rotator_c.sync_gallery`): Wipes the Frame TV gallery and re-uploads the complete Immich album from scratch.
+- **Sync Gallery button**: Manual UI trigger for the sync_gallery service.
+- **Motion settings in Options**: Motion Enabled (on/off switch) and Motion Sensitivity (1-3 slider, native Samsung scale).
+
+### Removed
+- Motion-based wake/standby automation (motion sensor entity selector, motion timeout, automatic standby timer).
+
 ## [1.3.0] - 2026-06-05
 
 ### Added
